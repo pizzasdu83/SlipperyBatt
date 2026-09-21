@@ -6,8 +6,7 @@
 
 #define SBT_DOMAIN CFSTR("com.pizzasdu83.slipperybatt")
 #define SBT_NOTIFY "com.pizzasdu83.slipperybatt/reload"
-#define SBT_CLASSDUMP_PATH @"/var/mobile/Documents/SlipperyBatt-classdump.txt"
-#define SBT_VIEWDUMP_PATH  @"/var/mobile/Documents/SlipperyBatt-viewdump.txt"
+#define SBT_VIEWDUMP_PATH @"/var/mobile/Documents/SlipperyBatt-viewdump.txt"
 
 // 16x6 black plug glyph (the 3DS charging icon), embedded so no extra file has to be uploaded.
 static NSString *const kSBTPlugBase64 =
@@ -120,7 +119,7 @@ static NSArray *SBT3DSColors(SBTState state) {
 }
 
 // Fills in the gradient for a state. Returns NO when this state should keep
-// the stock look (empty/invalid hex, tweak logic decides nothing to paint).
+// the stock look (empty/invalid hex).
 static BOOL SBTBuildGradient(SBTState state, NSArray **colors, NSArray **locations,
                              CGPoint *start, CGPoint *end) {
     if (sbtMode3DS) {
@@ -151,11 +150,42 @@ static BOOL SBTBuildGradient(SBTState state, NSArray **colors, NSArray **locatio
     return YES;
 }
 
-// ---- Battery state ----
+// ---- Private UIKit access helpers ----
+
+static id SBTValueForKey(id obj, NSString *key) {
+    @try { return [obj valueForKey:key]; } @catch (NSException *e) { return nil; }
+}
+
+static CALayer *SBTLayerFromObject(id o) {
+    if ([o isKindOfClass:[UIView class]]) return ((UIView *)o).layer;
+    if ([o isKindOfClass:[CALayer class]]) return o;
+    return nil;
+}
+
+static id SBTIvarObject(id obj, const char *name) {
+    Ivar iv = class_getInstanceVariable(object_getClass(obj), name);   // searches superclasses too
+    if (!iv) return nil;
+    const char *type = ivar_getTypeEncoding(iv);
+    if (!type || type[0] != '@') return nil;
+    return object_getIvar(obj, iv);
+}
+
+// _UIBatteryView exposes its layers through public-looking accessors
+// (fillLayer, bodyLayer, boltLayer...). The on-screen class is actually the
+// subclass STUIStatusBarBatteryView, which is why the ivars aren't listed on it.
+static CALayer *SBTFindFillLayer(UIView *battery) {
+    CALayer *l = SBTLayerFromObject(SBTValueForKey(battery, @"fillLayer"));
+    if (l) return l;
+    static const char *names[] = { "_fillLayer", "_fillShapeLayer", "_fillView", NULL };
+    for (int i = 0; names[i]; i++) {
+        l = SBTLayerFromObject(SBTIvarObject(battery, names[i]));
+        if (l) return l;
+    }
+    return nil;
+}
 
 // Reads what THIS battery view is displaying (so e.g. a Bluetooth device battery
-// uses its own level). Falls back to the device's own state if the private
-// properties aren't there.
+// uses its own level). Falls back to the device's own state if a key is missing.
 static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL *saver) {
     UIDevice *device = [UIDevice currentDevice];
     double p = device.batteryLevel;
@@ -164,21 +194,15 @@ static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL 
               device.batteryState == UIDeviceBatteryStateFull);
     BOOL s = [NSProcessInfo processInfo].lowPowerModeEnabled;
 
-    @try {
-        id v = [view valueForKey:@"chargePercent"];
-        if ([v isKindOfClass:[NSNumber class]]) {
-            p = [v doubleValue];
-            if (p > 1.0) p /= 100.0;   // in case it's expressed 0-100
-        }
-    } @catch (NSException *e) {}
-    @try {
-        id v = [view valueForKey:@"chargingState"];
-        if ([v isKindOfClass:[NSNumber class]]) c = ([v integerValue] != 0);
-    } @catch (NSException *e) {}
-    @try {
-        id v = [view valueForKey:@"saverModeActive"];
-        if ([v isKindOfClass:[NSNumber class]]) s = [v boolValue];
-    } @catch (NSException *e) {}
+    id v = SBTValueForKey(view, @"chargePercent");        // 0.0 - 1.0 (confirmed by the dump)
+    if ([v isKindOfClass:[NSNumber class]]) {
+        p = [v doubleValue];
+        if (p > 1.0) p /= 100.0;
+    }
+    v = SBTValueForKey(view, @"chargingState");
+    if ([v isKindOfClass:[NSNumber class]]) c = ([v integerValue] != 0);
+    v = SBTValueForKey(view, @"saverModeActive");
+    if ([v isKindOfClass:[NSNumber class]]) s = [v boolValue];
 
     *pct = MAX(0.0, MIN(1.0, p));
     *charging = c;
@@ -192,60 +216,6 @@ static SBTState SBTResolveState(double pct, BOOL charging, BOOL saver) {
     return SBTStateNormal;
 }
 
-// ---- Locating the native pieces of _UIBatteryView (private ivars, best effort) ----
-
-static id SBTIvarObject(id obj, const char *name) {
-    Ivar iv = class_getInstanceVariable(object_getClass(obj), name);
-    if (!iv) return nil;
-    const char *type = ivar_getTypeEncoding(iv);
-    if (!type || type[0] != '@') return nil;
-    return object_getIvar(obj, iv);
-}
-
-static CALayer *SBTLayerFromObject(id o) {
-    if ([o isKindOfClass:[UIView class]]) return ((UIView *)o).layer;
-    if ([o isKindOfClass:[CALayer class]]) return o;
-    return nil;
-}
-
-static CALayer *SBTFindFillLayer(UIView *battery) {
-    static const char *names[] = { "_fillLayer", "_fillShapeLayer", "_fillView",
-                                   "_fillShapeView", "_batteryFillLayer", NULL };
-    for (int i = 0; names[i]; i++) {
-        CALayer *l = SBTLayerFromObject(SBTIvarObject(battery, names[i]));
-        if (l) return l;
-    }
-    return nil;
-}
-
-static const void *SBTOverlayKey = &SBTOverlayKey;
-static const void *SBTPlugKey = &SBTPlugKey;
-static const void *SBTHidFillKey = &SBTHidFillKey;
-static const void *SBTHidBoltKey = &SBTHidBoltKey;
-
-// The stock charging bolt, hidden while our plug icon is shown.
-static void SBTSetNativeBoltHidden(UIView *battery, BOOL hide) {
-    BOOL wasHidden = [objc_getAssociatedObject(battery, SBTHidBoltKey) boolValue];
-    if (!hide && !wasHidden) return;
-    static const char *names[] = { "_boltImageView", "_chargingImageView", "_boltView",
-                                   "_chargingBoltView", "_boltLayer", NULL };
-    for (int i = 0; names[i]; i++) {
-        id o = SBTIvarObject(battery, names[i]);
-        if ([o isKindOfClass:[UIView class]]) ((UIView *)o).hidden = hide;
-        else if ([o isKindOfClass:[CALayer class]]) ((CALayer *)o).hidden = hide;
-    }
-    objc_setAssociatedObject(battery, SBTHidBoltKey, @(hide), OBJC_ASSOCIATION_RETAIN);
-}
-
-// Used only when the native fill layer can't be found: a rough inner rect.
-static CGRect SBTFallbackFillRect(UIView *battery, double pct) {
-    CGFloat inset = 2.0f, pin = 2.0f;
-    CGRect body = CGRectMake(0, 0, battery.bounds.size.width - pin, battery.bounds.size.height);
-    CGRect inner = CGRectInset(body, inset, inset);
-    inner.size.width = MAX(0.0, inner.size.width * (CGFloat)pct);
-    return inner;
-}
-
 static UIImage *SBTPlugImage(void) {
     static UIImage *image;
     static dispatch_once_t once;
@@ -256,175 +226,160 @@ static UIImage *SBTPlugImage(void) {
     return image;
 }
 
-// ---- Diagnostics: written once so we can adapt to iOS 26's real layout ----
+// ---- Diagnostics: written once per battery view class, once it has a real size ----
 
 static void SBTDumpLayerTree(CALayer *l, int depth, NSMutableString *out) {
     BOOL isShape = [l isKindOfClass:[CAShapeLayer class]];
-    [out appendFormat:@"%*s%@ frame=%@ hidden=%d radius=%.1f bg=%@ delegate=%@ %s\n",
+    [out appendFormat:@"%*s%@ frame=%@ hidden=%d opacity=%.2f radius=%.1f masks=%d bg=%@ mask=%@ delegate=%@ %s\n",
         depth * 2, "", NSStringFromClass([l class]), NSStringFromCGRect(l.frame),
-        (int)l.hidden, l.cornerRadius, l.backgroundColor ? @"yes" : @"no",
+        (int)l.hidden, l.opacity, l.cornerRadius, (int)l.masksToBounds,
+        l.backgroundColor ? @"yes" : @"no",
+        l.mask ? NSStringFromClass([l.mask class]) : @"none",
         NSStringFromClass([l.delegate class]),
         (isShape && ((CAShapeLayer *)l).path) ? "path" : ""];
     for (CALayer *sub in l.sublayers) SBTDumpLayerTree(sub, depth + 1, out);
 }
 
-static void SBTDumpBatteryViewOnce(UIView *battery) {
-    static BOOL dumped = NO;
-    if (dumped) return;
-    dumped = YES;
+static void SBTDumpAccessor(UIView *battery, NSString *key, NSMutableString *out) {
+    CALayer *l = SBTLayerFromObject(SBTValueForKey(battery, key));
+    if (!l) { [out appendFormat:@"  %@ = nil\n", key]; return; }
+    NSString *bg = l.backgroundColor ? [[UIColor colorWithCGColor:l.backgroundColor] description] : @"none";
+    NSString *mask = l.mask ? NSStringFromClass([l.mask class]) : @"none";
+    [out appendFormat:@"  %@ = %@ frame=%@ bounds=%@ hidden=%d opacity=%.2f radius=%.1f masks=%d bg=%@ mask=%@ sublayers=%lu\n",
+        key, NSStringFromClass([l class]), NSStringFromCGRect(l.frame), NSStringFromCGRect(l.bounds),
+        (int)l.hidden, l.opacity, l.cornerRadius, (int)l.masksToBounds, bg, mask,
+        (unsigned long)l.sublayers.count];
+}
+
+static void SBTDumpBatteryView(UIView *battery) {
+    static NSMutableSet *dumpedClasses;
+    static NSMutableString *allDumps;
+    if (battery.bounds.size.width < 5.0f || battery.bounds.size.height < 5.0f) return;   // wait for a real size
+
+    NSString *cname = NSStringFromClass([battery class]);
+    if (!dumpedClasses) { dumpedClasses = [NSMutableSet set]; allDumps = [NSMutableString string]; }
+    if ([dumpedClasses containsObject:cname]) return;
+    [dumpedClasses addObject:cname];
 
     NSMutableString *out = [NSMutableString string];
-    [out appendFormat:@"class: %@\nframe: %@\n\nivars:\n", NSStringFromClass([battery class]),
-        NSStringFromCGRect(battery.frame)];
-    unsigned int n = 0;
-    Ivar *ivars = class_copyIvarList([battery class], &n);
-    for (unsigned int i = 0; i < n; i++) {
-        [out appendFormat:@"  %s (%s)\n", ivar_getName(ivars[i]), ivar_getTypeEncoding(ivars[i])];
+    [out appendFormat:@"==== %@ ====\nframe: %@\nchain:", cname, NSStringFromCGRect(battery.frame)];
+    for (Class c = [battery class]; c; c = class_getSuperclass(c)) [out appendFormat:@" %@", NSStringFromClass(c)];
+    [out appendString:@"\n\nivars (whole chain):\n"];
+    for (Class c = [battery class]; c && c != [UIView class]; c = class_getSuperclass(c)) {
+        unsigned int n = 0;
+        Ivar *ivars = class_copyIvarList(c, &n);
+        for (unsigned int i = 0; i < n; i++) {
+            [out appendFormat:@"  %@.%s (%s)\n", NSStringFromClass(c), ivar_getName(ivars[i]), ivar_getTypeEncoding(ivars[i])];
+        }
+        free(ivars);
     }
-    free(ivars);
 
     [out appendString:@"\nkvc values:\n"];
-    for (NSString *key in @[@"chargePercent", @"chargingState", @"saverModeActive"]) {
-        id v = nil;
-        @try { v = [battery valueForKey:key]; } @catch (NSException *e) { v = @"<no such key>"; }
-        [out appendFormat:@"  %@ = %@\n", key, v];
+    for (NSString *key in @[@"chargePercent", @"chargingState", @"saverModeActive", @"showsPercentage",
+                            @"showsInlineChargingIndicator", @"lowBatteryMode", @"iconSize", @"sizeCategory"]) {
+        [out appendFormat:@"  %@ = %@\n", key, SBTValueForKey(battery, key) ?: @"<nil or no such key>"];
+    }
+
+    [out appendString:@"\nlayer accessors:\n"];
+    for (NSString *key in @[@"fillLayer", @"percentFillLayer", @"percentFillShapeLayer", @"bodyLayer",
+                            @"bodyShapeLayer", @"pinLayer", @"boltLayer", @"boltMaskLayer"]) {
+        SBTDumpAccessor(battery, key, out);
     }
 
     [out appendString:@"\nlayer tree:\n"];
     SBTDumpLayerTree(battery.layer, 0, out);
-
     [out appendString:@"\nsubviews:\n"];
     for (UIView *sub in battery.subviews) {
-        [out appendFormat:@"  %@ frame=%@\n", NSStringFromClass([sub class]), NSStringFromCGRect(sub.frame)];
+        [out appendFormat:@"  %@ frame=%@ hidden=%d\n", NSStringFromClass([sub class]),
+            NSStringFromCGRect(sub.frame), (int)sub.hidden];
     }
-    [out writeToFile:SBT_VIEWDUMP_PATH atomically:YES encoding:NSUTF8StringEncoding error:nil];
-}
+    [out appendString:@"\n"];
 
-static void SBTDumpClasses(void) {
-    NSMutableString *out = [NSMutableString string];
-    int count = objc_getClassList(NULL, 0);
-    Class *classes = (Class *)malloc(sizeof(Class) * (unsigned long)count);
-    count = objc_getClassList(classes, count);
-    for (int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if ([name rangeOfString:@"Battery" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-            [out appendFormat:@"%@\n", name];
-        }
-    }
-    free(classes);
-
-    Class cls = objc_getClass("_UIBatteryView");
-    if (cls) {
-        unsigned int n = 0;
-        Method *methods = class_copyMethodList(cls, &n);
-        [out appendString:@"\n_UIBatteryView methods:\n"];
-        for (unsigned int i = 0; i < n; i++) {
-            [out appendFormat:@"  %@\n", NSStringFromSelector(method_getName(methods[i]))];
-        }
-        free(methods);
-    } else {
-        [out appendString:@"\n_UIBatteryView NOT FOUND\n"];
-    }
-    [out writeToFile:SBT_CLASSDUMP_PATH atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [allDumps appendString:out];
+    [allDumps writeToFile:SBT_VIEWDUMP_PATH atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
 // ---- Painting ----
+// The gradient is a sublayer INSIDE the native fill layer. That way the native
+// code keeps owning the geometry (width = charge level, rounded corners, text
+// cutout mask...) and we only paint on top of its background color.
 
-static void SBTRestoreNative(UIView *battery, CALayer *overlay, CALayer *fill) {
+static const void *SBTGradientKey = &SBTGradientKey;      // on the fill layer
+static const void *SBTOrigMasksKey = &SBTOrigMasksKey;    // on the fill layer
+static const void *SBTPlugKey = &SBTPlugKey;              // on the battery view
+static const void *SBTHidBoltKey = &SBTHidBoltKey;        // on the battery view
+
+static void SBTSetNativeBoltHidden(UIView *battery, BOOL hide) {
+    BOOL wasHidden = [objc_getAssociatedObject(battery, SBTHidBoltKey) boolValue];
+    if (!hide && !wasHidden) return;
+    CALayer *bolt = SBTLayerFromObject(SBTValueForKey(battery, @"boltLayer"));
+    if (bolt) bolt.hidden = hide;
+    objc_setAssociatedObject(battery, SBTHidBoltKey, @(hide), OBJC_ASSOCIATION_RETAIN);
+}
+
+static void SBTRestoreNative(UIView *battery, CALayer *fill) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    if (overlay) overlay.hidden = YES;
+    if (fill) {
+        CAGradientLayer *grad = objc_getAssociatedObject(fill, SBTGradientKey);
+        if (grad && !grad.hidden) {
+            grad.hidden = YES;
+            NSNumber *orig = objc_getAssociatedObject(fill, SBTOrigMasksKey);
+            if (orig) fill.masksToBounds = orig.boolValue;
+        }
+    }
     CALayer *plug = objc_getAssociatedObject(battery, SBTPlugKey);
     if (plug) plug.hidden = YES;
-    if ([objc_getAssociatedObject(battery, SBTHidFillKey) boolValue]) {
-        if (fill) fill.hidden = NO;
-        objc_setAssociatedObject(battery, SBTHidFillKey, @NO, OBJC_ASSOCIATION_RETAIN);
-    }
     [CATransaction commit];
     SBTSetNativeBoltHidden(battery, NO);
 }
 
 static void SBTApplyOverlay(UIView *battery) {
     if (!battery) return;
-    SBTDumpBatteryViewOnce(battery);
+    SBTDumpBatteryView(battery);
 
-    CAGradientLayer *overlay = objc_getAssociatedObject(battery, SBTOverlayKey);
     CALayer *fill = SBTFindFillLayer(battery);
 
     NSArray *colors = nil, *locations = nil;
     CGPoint start = CGPointZero, end = CGPointZero;
     double pct = 1.0;
     BOOL charging = NO, saver = NO;
-    BOOL active = sbtEnabled;
+    BOOL active = (sbtEnabled && fill != nil);
     if (active) {
         SBTReadBatteryState(battery, &pct, &charging, &saver);
         SBTState state = SBTResolveState(pct, charging, saver);
         active = SBTBuildGradient(state, &colors, &locations, &start, &end);
     }
-
-    CGRect rect = CGRectZero;
-    if (active) {
-        rect = fill ? fill.frame : SBTFallbackFillRect(battery, pct);
-        if (rect.size.width < 0.5f || rect.size.height < 0.5f) active = NO;
-    }
+    if (active && (fill.bounds.size.width < 0.5f || fill.bounds.size.height < 0.5f)) active = NO;
 
     if (!active) {
-        SBTRestoreNative(battery, overlay, fill);
+        SBTRestoreNative(battery, fill);
         return;
     }
-
-    CALayer *parent = fill ? fill.superlayer : battery.layer;
-    if (!parent) return;
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
 
-    if (!overlay) {
-        overlay = [CAGradientLayer layer];
-        objc_setAssociatedObject(battery, SBTOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN);
+    CAGradientLayer *grad = objc_getAssociatedObject(fill, SBTGradientKey);
+    if (!grad) {
+        grad = [CAGradientLayer layer];
+        objc_setAssociatedObject(fill, SBTGradientKey, grad, OBJC_ASSOCIATION_RETAIN);
+        objc_setAssociatedObject(fill, SBTOrigMasksKey, @(fill.masksToBounds), OBJC_ASSOCIATION_RETAIN);
     }
-    if (overlay.superlayer != parent) {
-        [overlay removeFromSuperlayer];
-        if (fill) {
-            // Right above the native fill, so the percentage text stays on top.
-            [parent insertSublayer:overlay above:fill];
-        } else {
-            overlay.zPosition = 1000;
-            [parent addSublayer:overlay];
-        }
+    if (grad.superlayer != fill) {
+        [grad removeFromSuperlayer];
+        [fill addSublayer:grad];
     }
+    fill.masksToBounds = YES;      // clip the gradient to the native rounded shape
+    grad.hidden = NO;
+    grad.opacity = 1.0f;
+    grad.frame = fill.bounds;
+    grad.colors = colors;
+    grad.locations = locations;
+    grad.startPoint = start;
+    grad.endPoint = end;
 
-    overlay.hidden = NO;
-    overlay.opacity = 1.0f;
-    overlay.frame = rect;
-    overlay.colors = colors;
-    overlay.locations = locations;
-    overlay.startPoint = start;
-    overlay.endPoint = end;
-
-    // Same silhouette as the native fill.
-    if ([fill isKindOfClass:[CAShapeLayer class]] && ((CAShapeLayer *)fill).path) {
-        CAShapeLayer *mask = [CAShapeLayer layer];
-        mask.frame = overlay.bounds;
-        mask.path = ((CAShapeLayer *)fill).path;
-        mask.fillColor = [UIColor blackColor].CGColor;
-        overlay.mask = mask;
-        overlay.cornerRadius = 0.0f;
-        overlay.masksToBounds = NO;
-    } else {
-        overlay.mask = nil;
-        overlay.cornerRadius = (fill && fill.cornerRadius > 0.0f)
-            ? fill.cornerRadius : MIN(rect.size.height * 0.25f, 3.0f);
-        overlay.masksToBounds = YES;
-    }
-
-    // Hide the native fill (only if we found it).
-    if (fill) {
-        fill.hidden = YES;
-        objc_setAssociatedObject(battery, SBTHidFillKey, @YES, OBJC_ASSOCIATION_RETAIN);
-    }
-
-    // 3DS charging plug icon.
+    // 3DS charging plug icon, centered on the battery body.
     BOOL showPlug = sbtMode3DS && charging;
     CALayer *plug = objc_getAssociatedObject(battery, SBTPlugKey);
     if (showPlug) {
@@ -435,15 +390,20 @@ static void SBTApplyOverlay(UIView *battery) {
             plug.zPosition = 2000;
             objc_setAssociatedObject(battery, SBTPlugKey, plug, OBJC_ASSOCIATION_RETAIN);
         }
-        if (plug.superlayer != parent) {
+        if (plug.superlayer != battery.layer) {
             [plug removeFromSuperlayer];
-            [parent addSublayer:plug];
+            [battery.layer addSublayer:plug];
         }
         CGFloat w = 13.0f, h = w * 6.0f / 16.0f;
         CGPoint center = CGPointMake((battery.bounds.size.width - 2.0f) * 0.5f,
                                      battery.bounds.size.height * 0.5f);
+        CALayer *body = SBTLayerFromObject(SBTValueForKey(battery, @"bodyLayer"));
+        if (body && body.bounds.size.width > 0.5f) {
+            center = [battery.layer convertPoint:CGPointMake(CGRectGetMidX(body.bounds), CGRectGetMidY(body.bounds))
+                                       fromLayer:body];
+        }
         plug.bounds = CGRectMake(0, 0, w, h);
-        plug.position = [battery.layer convertPoint:center toLayer:parent];
+        plug.position = center;
         plug.hidden = NO;
     } else if (plug) {
         plug.hidden = YES;
@@ -460,7 +420,7 @@ static void SBTTrackView(UIView *view) {
     [sbtTrackedViews addObject:view];
 }
 
-// ---- Hook target (private UIKit class) ----
+// ---- Hook target (private UIKit class; the status bar uses its subclass STUIStatusBarBatteryView) ----
 @interface _UIBatteryView : UIView
 @end
 
@@ -497,7 +457,6 @@ static void SBTPollTick(CFRunLoopTimerRef timer, void *info) {
 %ctor {
     [UIDevice currentDevice].batteryMonitoringEnabled = YES;
     SBTLoadPrefs();
-    SBTDumpClasses();
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         NULL, SBTReloadCallback, CFSTR(SBT_NOTIFY), NULL,
