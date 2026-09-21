@@ -1,0 +1,9 @@
+Package: com.pizzasdu83.slipperybatt
+Name: Slippery Batt
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Recolor the battery icon (solid color, gradient, Low Power Mode, low battery and a 3DS mode)
+Maintainer: SaaS
+Author: SaaS
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000), firmware (>= 15.0), preferenceloader
