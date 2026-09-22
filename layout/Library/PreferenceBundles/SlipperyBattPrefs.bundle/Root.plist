@@ -26,6 +26,30 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
+			<string>Shows the battery percentage. While charging, it moves to a label on the left of the icon.</string>
+			<key>id</key>
+			<string>en_grouppct</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>com.pizzasdu83.slipperybatt/reload</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.pizzasdu83.slipperybatt</string>
+			<key>id</key>
+			<string>en_percentage</string>
+			<key>key</key>
+			<string>ShowPercentage</string>
+			<key>label</key>
+			<string>Show Percentage</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
 			<string>3DS mode replaces every color with the console's gradients: blue normally, orange while charging or at 20% and below, green in Low Power Mode. A plug icon shows while charging.</string>
 			<key>id</key>
 			<string>en_group3ds</string>
