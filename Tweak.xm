@@ -22,6 +22,7 @@ typedef NS_ENUM(NSInteger, SBTState) {
 static BOOL sbtEnabled = YES;
 static BOOL sbtMode3DS = NO;
 static BOOL sbtGradient = NO;
+static BOOL sbtShowPercentage = NO;
 static CGFloat sbtAngle = 0.0f;
 // One entry per SBTState: a UIColor, or NSNull when the hex is empty/invalid
 // (= keep the stock color for that state).
@@ -75,6 +76,7 @@ static void SBTLoadPrefs(void) {
     sbtEnabled  = SBTReadBool(CFSTR("Enabled"), YES);
     sbtMode3DS  = SBTReadBool(CFSTR("Mode3DS"), NO);
     sbtGradient = SBTReadBool(CFSTR("GradientEnabled"), NO);
+    sbtShowPercentage = SBTReadBool(CFSTR("ShowPercentage"), NO);
     sbtAngle    = (CGFloat)SBTReadDouble(CFSTR("Angle"), 0.0);
 
     // Defaults here must match the "default" values in Root.plist.
@@ -216,14 +218,28 @@ static SBTState SBTResolveState(double pct, BOOL charging, BOOL saver) {
     return SBTStateNormal;
 }
 
-static UIImage *SBTPlugImage(void) {
-    static UIImage *image;
+// Black plug glyph, plus a baked white copy for dark mode (tinting a UIImage
+// doesn't change its CGImage, so the white one is drawn once with source-in).
+static UIImage *SBTPlugImage(BOOL white) {
+    static UIImage *blackImage, *whiteImage;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSData *data = [[NSData alloc] initWithBase64EncodedString:kSBTPlugBase64 options:0];
-        if (data) image = [UIImage imageWithData:data];
+        if (!data) return;
+        blackImage = [UIImage imageWithData:data scale:1.0];
+        CGRect rect = CGRectMake(0, 0, blackImage.size.width, blackImage.size.height);
+        UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
+        format.scale = 1.0;
+        format.opaque = NO;
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:rect.size format:format];
+        whiteImage = [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+            [blackImage drawInRect:rect];
+            CGContextSetBlendMode(ctx.CGContext, kCGBlendModeSourceIn);
+            CGContextSetFillColorWithColor(ctx.CGContext, [UIColor whiteColor].CGColor);
+            CGContextFillRect(ctx.CGContext, rect);
+        }];
     });
-    return image;
+    return white ? whiteImage : blackImage;
 }
 
 // ---- Diagnostics: written once per battery view class, once it has a real size ----
@@ -334,6 +350,92 @@ static void SBTRestoreNative(UIView *battery, CALayer *fill) {
     SBTSetNativeBoltHidden(battery, NO);
 }
 
+// ---- Battery percentage ----
+// While discharging, the native percentage is shown inside the icon. While
+// charging the inside is taken by the bolt / 3DS plug, so the percentage moves
+// to a label on the left of the icon. Status bar battery only.
+static const void *SBTPctLabelKey = &SBTPctLabelKey;          // on the battery view
+static const void *SBTOrigShowsPctKey = &SBTOrigShowsPctKey;  // on the battery view
+static const void *SBTPlugDarkKey = &SBTPlugDarkKey;          // on the plug layer
+
+static BOOL SBTIsStatusBarBattery(UIView *view) {
+    return [NSStringFromClass([view class]) rangeOfString:@"StatusBar"].location != NSNotFound;
+}
+
+static UIColor *SBTPercentTextColor(UIView *battery) {
+    id c = SBTValueForKey(battery, @"bodyColor");   // outline color, white/black depending on the bar
+    if ([c isKindOfClass:[UIColor class]]) {
+        UIColor *resolved = [(UIColor *)c resolvedColorWithTraitCollection:battery.traitCollection];
+        return [resolved colorWithAlphaComponent:1.0f];
+    }
+    return battery.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
+        ? [UIColor whiteColor] : [UIColor blackColor];
+}
+
+static void SBTApplyPercentage(UIView *battery, double pct, BOOL charging) {
+    BOOL want = sbtEnabled && sbtShowPercentage && SBTIsStatusBarBattery(battery);
+    CATextLayer *label = objc_getAssociatedObject(battery, SBTPctLabelKey);
+    NSNumber *orig = objc_getAssociatedObject(battery, SBTOrigShowsPctKey);
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
+    if (!want) {
+        if (label) label.hidden = YES;
+        if (orig) {
+            @try { [battery setValue:orig forKey:@"showsPercentage"]; } @catch (NSException *e) {}
+            objc_setAssociatedObject(battery, SBTOrigShowsPctKey, nil, OBJC_ASSOCIATION_RETAIN);
+        }
+        [CATransaction commit];
+        return;
+    }
+
+    id cur = SBTValueForKey(battery, @"showsPercentage");
+    if (!orig && [cur isKindOfClass:[NSNumber class]]) {
+        objc_setAssociatedObject(battery, SBTOrigShowsPctKey, cur, OBJC_ASSOCIATION_RETAIN);
+    }
+    BOOL inside = !charging;
+    if ([cur isKindOfClass:[NSNumber class]] && [cur boolValue] != inside) {
+        @try { [battery setValue:@(inside) forKey:@"showsPercentage"]; } @catch (NSException *e) {}
+    }
+
+    if (!charging) {
+        if (label) label.hidden = YES;
+        [CATransaction commit];
+        return;
+    }
+
+    if (!label) {
+        label = [CATextLayer layer];
+        UIFont *font = [UIFont systemFontOfSize:12.0f weight:UIFontWeightSemibold];
+        label.font = (__bridge CFTypeRef)font;
+        label.fontSize = font.pointSize;
+        label.alignmentMode = kCAAlignmentRight;
+        label.wrapped = NO;
+        label.zPosition = 2000;
+        objc_setAssociatedObject(battery, SBTPctLabelKey, label, OBJC_ASSOCIATION_RETAIN);
+    }
+    if (label.superlayer != battery.layer) {
+        [label removeFromSuperlayer];
+        [battery.layer addSublayer:label];
+    }
+    label.contentsScale = battery.window.screen.scale ?: [UIScreen mainScreen].scale;
+    label.string = [NSString stringWithFormat:@"%d%%", (int)lround(pct * 100.0)];
+    label.foregroundColor = SBTPercentTextColor(battery).CGColor;
+
+    // Right edge sits just left of the battery body.
+    CGRect bodyRect = battery.bounds;
+    CALayer *body = SBTLayerFromObject(SBTValueForKey(battery, @"bodyLayer"));
+    if (body && body.bounds.size.width > 0.5f) {
+        bodyRect = [battery.layer convertRect:body.bounds fromLayer:body];
+    }
+    CGFloat w = 34.0f, h = 14.0f;
+    label.frame = CGRectMake(CGRectGetMinX(bodyRect) - 3.0f - w,
+                             CGRectGetMidY(bodyRect) - h * 0.5f - 0.5f, w, h);
+    label.hidden = NO;
+    [CATransaction commit];
+}
+
 static void SBTApplyOverlay(UIView *battery) {
     if (!battery) return;
     SBTDumpBatteryView(battery);
@@ -344,9 +446,12 @@ static void SBTApplyOverlay(UIView *battery) {
     CGPoint start = CGPointZero, end = CGPointZero;
     double pct = 1.0;
     BOOL charging = NO, saver = NO;
+    if (sbtEnabled) SBTReadBatteryState(battery, &pct, &charging, &saver);
+
+    SBTApplyPercentage(battery, pct, charging);
+
     BOOL active = (sbtEnabled && fill != nil);
     if (active) {
-        SBTReadBatteryState(battery, &pct, &charging, &saver);
         SBTState state = SBTResolveState(pct, charging, saver);
         active = SBTBuildGradient(state, &colors, &locations, &start, &end);
     }
@@ -385,7 +490,6 @@ static void SBTApplyOverlay(UIView *battery) {
     if (showPlug) {
         if (!plug) {
             plug = [CALayer layer];
-            plug.contents = (__bridge id)SBTPlugImage().CGImage;
             plug.contentsGravity = kCAGravityResizeAspect;
             plug.zPosition = 2000;
             objc_setAssociatedObject(battery, SBTPlugKey, plug, OBJC_ASSOCIATION_RETAIN);
@@ -401,6 +505,13 @@ static void SBTApplyOverlay(UIView *battery) {
         if (body && body.bounds.size.width > 0.5f) {
             center = [battery.layer convertPoint:CGPointMake(CGRectGetMidX(body.bounds), CGRectGetMidY(body.bounds))
                                        fromLayer:body];
+        }
+        // Black plug in light mode, white plug in dark mode (system appearance).
+        BOOL dark = ([UIScreen mainScreen].traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+        NSNumber *lastDark = objc_getAssociatedObject(plug, SBTPlugDarkKey);
+        if (!lastDark || lastDark.boolValue != dark) {
+            plug.contents = (__bridge id)SBTPlugImage(dark).CGImage;
+            objc_setAssociatedObject(plug, SBTPlugDarkKey, @(dark), OBJC_ASSOCIATION_RETAIN);
         }
         plug.bounds = CGRectMake(0, 0, w, h);
         plug.position = center;
