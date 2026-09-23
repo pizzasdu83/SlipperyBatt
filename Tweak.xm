@@ -88,7 +88,8 @@ static void SBTLoadPrefs(void) {
     {
         CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("PercentPrecision"), SBT_DOMAIN);
         id obj = ref ? (__bridge_transfer id)ref : nil;
-        sbtPercentPrecision = [obj respondsToSelector:@selector(intValue)] ? [obj intValue] : 0;
+        double raw = [obj respondsToSelector:@selector(doubleValue)] ? [obj doubleValue] : 0.0;
+        sbtPercentPrecision = (int)lround(raw);   // slider is continuous, snap to the nearest step
     }
 
     // Defaults here must match the "default" values in Root.plist.
