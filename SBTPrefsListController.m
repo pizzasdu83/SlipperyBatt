@@ -1,4 +1,5 @@
 #import "SBTPrefsListController.h"
+#import "HBTPrefsHeaderView.h"
 #import <Preferences/PSSpecifier.h>
 
 static NSString *const kSBTDomain = @"com.pizzasdu83.slipperybatt";
@@ -21,6 +22,14 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     NSNumber *cached = _sbtToggles[key];
     if (cached) return cached.boolValue;
     return SBTPrefBool(key, fallback);
+}
+
+- (void)loadView {
+    [super loadView];
+    HBTPrefsHeaderView *header = [[HBTPrefsHeaderView alloc] initWithTitle:@"Slippery Batt"];
+    CGSize size = [header sizeThatFits:CGSizeMake(self.table.bounds.size.width, 0)];
+    header.frame = CGRectMake(0, 0, self.table.bounds.size.width, size.height);
+    self.table.tableHeaderView = header;
 }
 
 // Rows are shown or hidden according to the prefix of their "id" in Root.plist:
