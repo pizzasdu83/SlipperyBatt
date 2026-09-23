@@ -8,6 +8,8 @@
 		<string>SlipperyBattPrefs</string>
 		<key>cell</key>
 		<string>PSLinkCell</string>
+		<key>icon</key>
+		<string>Icon.png</string>
 		<key>isController</key>
 		<true/>
 		<key>label</key>
