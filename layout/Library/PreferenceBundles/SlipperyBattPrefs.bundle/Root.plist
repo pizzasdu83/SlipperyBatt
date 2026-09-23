@@ -50,6 +50,64 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
+			<string>0% is the left/top edge, 100% is the right/bottom edge. Default sits near the status bar battery.</string>
+			<key>id</key>
+			<string>pc_groupoffset</string>
+			<key>label</key>
+			<string>Position on Screen</string>
+		</dict>
+		<dict>
+			<key>AllowsContinuousUpdates</key>
+			<true/>
+			<key>DefaultValue</key>
+			<real>82.0</real>
+			<key>MaximumValue</key>
+			<real>100.0</real>
+			<key>MinimumValue</key>
+			<real>0.0</real>
+			<key>PostNotification</key>
+			<string>com.pizzasdu83.slipperybatt/reload</string>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>82.0</real>
+			<key>defaults</key>
+			<string>com.pizzasdu83.slipperybatt</string>
+			<key>id</key>
+			<string>pc_posx</string>
+			<key>key</key>
+			<string>PercentPosX</string>
+			<key>showValue</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>AllowsContinuousUpdates</key>
+			<true/>
+			<key>DefaultValue</key>
+			<real>3.0</real>
+			<key>MaximumValue</key>
+			<real>100.0</real>
+			<key>MinimumValue</key>
+			<real>0.0</real>
+			<key>PostNotification</key>
+			<string>com.pizzasdu83.slipperybatt/reload</string>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>3.0</real>
+			<key>defaults</key>
+			<string>com.pizzasdu83.slipperybatt</string>
+			<key>id</key>
+			<string>pc_posy</string>
+			<key>key</key>
+			<string>PercentPosY</string>
+			<key>showValue</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
 			<string>3DS mode replaces every color with the console's gradients: blue normally, orange while charging or at 20% and below, green in Low Power Mode. A plug icon shows while charging.</string>
 			<key>id</key>
 			<string>en_group3ds</string>
@@ -69,6 +127,30 @@
 			<string>Mode3DS</string>
 			<key>label</key>
 			<string>3DS Mode</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>Mirrors the battery shape and charge level left-to-right. The 3DS plug icon keeps its normal orientation.</string>
+			<key>id</key>
+			<string>en_groupflip</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>com.pizzasdu83.slipperybatt/reload</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.pizzasdu83.slipperybatt</string>
+			<key>id</key>
+			<string>en_flip</string>
+			<key>key</key>
+			<string>FlipHorizontal</string>
+			<key>label</key>
+			<string>Flip Horizontally</string>
 		</dict>
 		<dict>
 			<key>cell</key>
