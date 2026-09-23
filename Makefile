@@ -9,7 +9,7 @@ SlipperyBatt_FILES = Tweak.xm
 SlipperyBatt_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 
 BUNDLE_NAME = SlipperyBattPrefs
-SlipperyBattPrefs_FILES = SBTPrefsListController.m
+SlipperyBattPrefs_FILES = SBTPrefsListController.m HBTPrefsHeaderView.m
 SlipperyBattPrefs_INSTALL_PATH = /Library/PreferenceBundles
 SlipperyBattPrefs_FRAMEWORKS = UIKit
 SlipperyBattPrefs_PRIVATE_FRAMEWORKS = Preferences
