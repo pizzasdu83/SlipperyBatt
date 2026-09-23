@@ -50,7 +50,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>0% is the left/top edge, 100% is the right/bottom edge. Default sits near the status bar battery.</string>
+			<string>Position as % of screen (bottom row). Precision slider: left = 25%, middle = 25.5%, right = 25.56%.</string>
 			<key>id</key>
 			<string>pc_groupoffset</string>
 			<key>label</key>
@@ -101,32 +101,24 @@
 			<true/>
 		</dict>
 		<dict>
+			<key>AllowsContinuousUpdates</key>
+			<true/>
 			<key>PostNotification</key>
 			<string>com.pizzasdu83.slipperybatt/reload</string>
-			<key>Titles</key>
-			<array>
-				<string>25%</string>
-				<string>25.5%</string>
-				<string>25.56%</string>
-			</array>
-			<key>Values</key>
-			<array>
-				<integer>0</integer>
-				<integer>1</integer>
-				<integer>2</integer>
-			</array>
 			<key>cell</key>
-			<string>PSMultiValueCell</string>
+			<string>PSSliderCell</string>
 			<key>default</key>
-			<integer>0</integer>
+			<real>0.0</real>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
 			<string>pc_precision</string>
 			<key>key</key>
 			<string>PercentPrecision</string>
-			<key>label</key>
-			<string>Precision</string>
+			<key>max</key>
+			<real>2.0</real>
+			<key>min</key>
+			<real>0.0</real>
 		</dict>
 		<dict>
 			<key>cell</key>
