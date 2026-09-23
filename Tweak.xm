@@ -23,7 +23,10 @@ static BOOL sbtEnabled = YES;
 static BOOL sbtMode3DS = NO;
 static BOOL sbtGradient = NO;
 static BOOL sbtShowPercentage = NO;
+static BOOL sbtFlip = NO;
 static CGFloat sbtAngle = 0.0f;
+static CGFloat sbtPercentX = 82.0f;  // % of screen width
+static CGFloat sbtPercentY = 3.0f;   // % of screen height
 // One entry per SBTState: a UIColor, or NSNull when the hex is empty/invalid
 // (= keep the stock color for that state).
 static NSArray *sbtColors1;
@@ -77,7 +80,10 @@ static void SBTLoadPrefs(void) {
     sbtMode3DS  = SBTReadBool(CFSTR("Mode3DS"), NO);
     sbtGradient = SBTReadBool(CFSTR("GradientEnabled"), NO);
     sbtShowPercentage = SBTReadBool(CFSTR("ShowPercentage"), NO);
+    sbtFlip     = SBTReadBool(CFSTR("FlipHorizontal"), NO);
     sbtAngle    = (CGFloat)SBTReadDouble(CFSTR("Angle"), 0.0);
+    sbtPercentX = (CGFloat)SBTReadDouble(CFSTR("PercentPosX"), 82.0);
+    sbtPercentY = (CGFloat)SBTReadDouble(CFSTR("PercentPosY"), 3.0);
 
     // Defaults here must match the "default" values in Root.plist.
     sbtColors1 = @[
@@ -213,6 +219,7 @@ static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL 
 
 static SBTState SBTResolveState(double pct, BOOL charging, BOOL saver) {
     if (saver) return SBTStateLowPower;
+    if (sbtMode3DS && charging && pct > 0.90) return SBTStateLowPower;  // 3DS: green above 90% while charging
     if (pct <= 0.205) return SBTStateLow;                 // 20% or less
     if (sbtMode3DS && charging) return SBTStateLow;       // 3DS: orange while charging
     return SBTStateNormal;
@@ -350,90 +357,88 @@ static void SBTRestoreNative(UIView *battery, CALayer *fill) {
     SBTSetNativeBoltHidden(battery, NO);
 }
 
-// ---- Battery percentage ----
-// While discharging, the native percentage is shown inside the icon. While
-// charging the inside is taken by the bolt / 3DS plug, so the percentage moves
-// to a label on the left of the icon. Status bar battery only.
-static const void *SBTPctLabelKey = &SBTPctLabelKey;          // on the battery view
-static const void *SBTOrigShowsPctKey = &SBTOrigShowsPctKey;  // on the battery view
-static const void *SBTPlugDarkKey = &SBTPlugDarkKey;          // on the plug layer
+// ---- Battery percentage: floating, freely-positioned label ----
+// A standalone HUD window, independent of any _UIBatteryView. Forcing the
+// native "showsPercentage" property was tried first, but on this iOS version
+// it swaps the whole icon for Apple's own colored percentage pill instead of
+// adding a side label, which duplicated/clashed with our own colored fill.
+// A separate always-on-top label sidesteps that entirely.
+static const void *SBTPlugDarkKey = &SBTPlugDarkKey;   // on the plug layer
 
-static BOOL SBTIsStatusBarBattery(UIView *view) {
-    return [NSStringFromClass([view class]) rangeOfString:@"StatusBar"].location != NSNotFound;
+@interface SBTPercentWindow : UIWindow
+@end
+@implementation SBTPercentWindow
+// Never intercept touches; this is a purely visual HUD.
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event { return nil; }
+@end
+
+static SBTPercentWindow *sbtPercentWindow;
+static UILabel *sbtPercentLabel;
+
+static void SBTEnsurePercentWindow(void) {
+    if (sbtPercentWindow) return;
+    UIScreen *screen = [UIScreen mainScreen];
+    sbtPercentWindow = [[SBTPercentWindow alloc] initWithFrame:screen.bounds];
+    sbtPercentWindow.screen = screen;
+    sbtPercentWindow.windowLevel = 2147483000.0;   // above everything else, including alerts
+    sbtPercentWindow.userInteractionEnabled = NO;
+    sbtPercentWindow.backgroundColor = [UIColor clearColor];
+    sbtPercentWindow.hidden = YES;
+
+    sbtPercentLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    sbtPercentLabel.font = [UIFont systemFontOfSize:15.0f weight:UIFontWeightSemibold];
+    sbtPercentLabel.textColor = [UIColor whiteColor];
+    sbtPercentLabel.layer.shadowColor = [UIColor blackColor].CGColor;
+    sbtPercentLabel.layer.shadowOpacity = 0.55f;
+    sbtPercentLabel.layer.shadowRadius = 2.0f;
+    sbtPercentLabel.layer.shadowOffset = CGSizeMake(0, 0.5f);
+    [sbtPercentWindow addSubview:sbtPercentLabel];
 }
 
-static UIColor *SBTPercentTextColor(UIView *battery) {
-    id c = SBTValueForKey(battery, @"bodyColor");   // outline color, white/black depending on the bar
-    if ([c isKindOfClass:[UIColor class]]) {
-        UIColor *resolved = [(UIColor *)c resolvedColorWithTraitCollection:battery.traitCollection];
-        return [resolved colorWithAlphaComponent:1.0f];
-    }
-    return battery.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
-        ? [UIColor whiteColor] : [UIColor blackColor];
-}
-
-static void SBTApplyPercentage(UIView *battery, double pct, BOOL charging) {
-    BOOL want = sbtEnabled && sbtShowPercentage && SBTIsStatusBarBattery(battery);
-    CATextLayer *label = objc_getAssociatedObject(battery, SBTPctLabelKey);
-    NSNumber *orig = objc_getAssociatedObject(battery, SBTOrigShowsPctKey);
-
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-
+// Reads the device's own battery state (not any one specific icon's).
+static void SBTUpdateFloatingPercent(void) {
+    BOOL want = sbtEnabled && sbtShowPercentage;
     if (!want) {
-        if (label) label.hidden = YES;
-        if (orig) {
-            @try { [battery setValue:orig forKey:@"showsPercentage"]; } @catch (NSException *e) {}
-            objc_setAssociatedObject(battery, SBTOrigShowsPctKey, nil, OBJC_ASSOCIATION_RETAIN);
-        }
-        [CATransaction commit];
+        if (sbtPercentWindow) sbtPercentWindow.hidden = YES;
         return;
     }
+    SBTEnsurePercentWindow();
 
-    id cur = SBTValueForKey(battery, @"showsPercentage");
-    if (!orig && [cur isKindOfClass:[NSNumber class]]) {
-        objc_setAssociatedObject(battery, SBTOrigShowsPctKey, cur, OBJC_ASSOCIATION_RETAIN);
-    }
-    BOOL inside = !charging;
-    if ([cur isKindOfClass:[NSNumber class]] && [cur boolValue] != inside) {
-        @try { [battery setValue:@(inside) forKey:@"showsPercentage"]; } @catch (NSException *e) {}
-    }
+    double pct = [UIDevice currentDevice].batteryLevel;
+    if (pct < 0.0) pct = 1.0;
+    sbtPercentLabel.text = [NSString stringWithFormat:@"%d%%", (int)lround(pct * 100.0)];
+    [sbtPercentLabel sizeToFit];
 
-    if (!charging) {
-        if (label) label.hidden = YES;
+    CGRect screen = [UIScreen mainScreen].bounds;
+    CGFloat fx = MAX(0.0, MIN(100.0, sbtPercentX)) / 100.0;
+    CGFloat fy = MAX(0.0, MIN(100.0, sbtPercentY)) / 100.0;
+    CGPoint center = CGPointMake(screen.size.width * fx, screen.size.height * fy);
+    CGFloat halfW = sbtPercentLabel.bounds.size.width * 0.5f + 2.0f;
+    CGFloat halfH = sbtPercentLabel.bounds.size.height * 0.5f + 2.0f;
+    center.x = MAX(halfW, MIN(screen.size.width - halfW, center.x));
+    center.y = MAX(halfH, MIN(screen.size.height - halfH, center.y));
+    sbtPercentLabel.center = center;
+    sbtPercentWindow.hidden = NO;
+}
+
+// ---- Horizontal flip ----
+// Mirrors the whole native battery layer (body, fill, pin, bolt): the shape
+// flips and the charge level visually grows from the opposite side, since a
+// transform doesn't change the underlying frames iOS lays out with. The 3DS
+// plug icon is a sibling layer, so it inherits this transform too - it gets
+// a second, opposite transform below to cancel that out and stay upright.
+static CATransform3D SBTFlipTransform(void) {
+    return (sbtEnabled && sbtFlip) ? CATransform3DMakeScale(-1.0, 1.0, 1.0) : CATransform3DIdentity;
+}
+
+static void SBTApplyFlip(UIView *battery) {
+    CATransform3D t = SBTFlipTransform();
+    if (!CATransform3DEqualToTransform(battery.layer.transform, t)) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        battery.layer.transform = t;
         [CATransaction commit];
-        return;
     }
-
-    if (!label) {
-        label = [CATextLayer layer];
-        UIFont *font = [UIFont systemFontOfSize:12.0f weight:UIFontWeightSemibold];
-        label.font = (__bridge CFTypeRef)font;
-        label.fontSize = font.pointSize;
-        label.alignmentMode = kCAAlignmentRight;
-        label.wrapped = NO;
-        label.zPosition = 2000;
-        objc_setAssociatedObject(battery, SBTPctLabelKey, label, OBJC_ASSOCIATION_RETAIN);
-    }
-    if (label.superlayer != battery.layer) {
-        [label removeFromSuperlayer];
-        [battery.layer addSublayer:label];
-    }
-    label.contentsScale = battery.window.screen.scale ?: [UIScreen mainScreen].scale;
-    label.string = [NSString stringWithFormat:@"%d%%", (int)lround(pct * 100.0)];
-    label.foregroundColor = SBTPercentTextColor(battery).CGColor;
-
-    // Right edge sits just left of the battery body.
-    CGRect bodyRect = battery.bounds;
-    CALayer *body = SBTLayerFromObject(SBTValueForKey(battery, @"bodyLayer"));
-    if (body && body.bounds.size.width > 0.5f) {
-        bodyRect = [battery.layer convertRect:body.bounds fromLayer:body];
-    }
-    CGFloat w = 34.0f, h = 14.0f;
-    label.frame = CGRectMake(CGRectGetMinX(bodyRect) - 3.0f - w,
-                             CGRectGetMidY(bodyRect) - h * 0.5f - 0.5f, w, h);
-    label.hidden = NO;
-    [CATransaction commit];
 }
 
 static void SBTApplyOverlay(UIView *battery) {
@@ -448,7 +453,8 @@ static void SBTApplyOverlay(UIView *battery) {
     BOOL charging = NO, saver = NO;
     if (sbtEnabled) SBTReadBatteryState(battery, &pct, &charging, &saver);
 
-    SBTApplyPercentage(battery, pct, charging);
+    SBTUpdateFloatingPercent();
+    SBTApplyFlip(battery);
 
     BOOL active = (sbtEnabled && fill != nil);
     if (active) {
@@ -515,6 +521,7 @@ static void SBTApplyOverlay(UIView *battery) {
         }
         plug.bounds = CGRectMake(0, 0, w, h);
         plug.position = center;
+        plug.transform = SBTFlipTransform();   // cancels the parent's flip so the plug stays upright
         plug.hidden = NO;
     } else if (plug) {
         plug.hidden = YES;

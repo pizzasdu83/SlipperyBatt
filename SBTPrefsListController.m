@@ -32,15 +32,17 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     if (!_specifiers) {
         NSArray *all = [self loadSpecifiersFromPlistName:@"Root" target:self];
 
-        BOOL enabled  = [self sbtToggle:@"Enabled" fallback:YES];
-        BOOL mode3DS  = [self sbtToggle:@"Mode3DS" fallback:NO];
-        BOOL gradient = [self sbtToggle:@"GradientEnabled" fallback:NO];
+        BOOL enabled    = [self sbtToggle:@"Enabled" fallback:YES];
+        BOOL mode3DS    = [self sbtToggle:@"Mode3DS" fallback:NO];
+        BOOL gradient   = [self sbtToggle:@"GradientEnabled" fallback:NO];
+        BOOL percentage = [self sbtToggle:@"ShowPercentage" fallback:NO];
 
         NSMutableArray *visible = [NSMutableArray array];
         for (PSSpecifier *spec in all) {
             NSString *ident = spec.identifier ?: @"";
             BOOL show = YES;
             if ([ident hasPrefix:@"en_"])      show = enabled;
+            else if ([ident hasPrefix:@"pc_"]) show = enabled && percentage;
             else if ([ident hasPrefix:@"cu_"]) show = enabled && !mode3DS;
             else if ([ident hasPrefix:@"gr_"]) show = enabled && !mode3DS && gradient;
             if (show) [visible addObject:spec];
@@ -54,7 +56,8 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     NSString *key = [specifier propertyForKey:@"key"];
     BOOL isToggle = [key isEqualToString:@"Enabled"] ||
                     [key isEqualToString:@"Mode3DS"] ||
-                    [key isEqualToString:@"GradientEnabled"];
+                    [key isEqualToString:@"GradientEnabled"] ||
+                    [key isEqualToString:@"ShowPercentage"];
     if (isToggle) {
         if (!_sbtToggles) _sbtToggles = [NSMutableDictionary dictionary];
         _sbtToggles[key] = @([value boolValue]);
@@ -96,7 +99,8 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
 - (void)sbtPerformReset {
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSBTDomain];
     NSArray<NSString *> *keys = @[
-        @"Enabled", @"Mode3DS", @"GradientEnabled", @"ShowPercentage", @"Angle",
+        @"Enabled", @"Mode3DS", @"GradientEnabled", @"ShowPercentage",
+        @"FlipHorizontal", @"PercentPosX", @"PercentPosY", @"Angle",
         @"NormalColor1", @"NormalColor2",
         @"LowPowerColor1", @"LowPowerColor2",
         @"LowColor1", @"LowColor2",
