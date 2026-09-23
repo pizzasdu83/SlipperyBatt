@@ -25,9 +25,8 @@ static BOOL sbtGradient = NO;
 static BOOL sbtShowPercentage = NO;
 static BOOL sbtFlip = NO;
 static CGFloat sbtAngle = 0.0f;
-static CGFloat sbtPercentX = 82.0f;  // % of screen width
-static CGFloat sbtPercentY = 3.0f;   // % of screen height
-static int sbtPercentPrecision = 0;  // 0 = "25%", 1 = "25.5%", 2 = "25.56%"
+static CGFloat sbtPercentX = 300.0f; // position in points (top-left origin)
+static CGFloat sbtPercentY = 20.0f;  // position in points
 // One entry per SBTState: a UIColor, or NSNull when the hex is empty/invalid
 // (= keep the stock color for that state).
 static NSArray *sbtColors1;
@@ -83,14 +82,8 @@ static void SBTLoadPrefs(void) {
     sbtShowPercentage = SBTReadBool(CFSTR("ShowPercentage"), NO);
     sbtFlip     = SBTReadBool(CFSTR("FlipHorizontal"), NO);
     sbtAngle    = (CGFloat)SBTReadDouble(CFSTR("Angle"), 0.0);
-    sbtPercentX = (CGFloat)SBTReadDouble(CFSTR("PercentPosX"), 82.0);
-    sbtPercentY = (CGFloat)SBTReadDouble(CFSTR("PercentPosY"), 3.0);
-    {
-        CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("PercentPrecision"), SBT_DOMAIN);
-        id obj = ref ? (__bridge_transfer id)ref : nil;
-        double raw = [obj respondsToSelector:@selector(doubleValue)] ? [obj doubleValue] : 0.0;
-        sbtPercentPrecision = (int)lround(raw);   // slider is continuous, snap to the nearest step
-    }
+    sbtPercentX = (CGFloat)SBTReadDouble(CFSTR("PercentPosX"), 300.0);
+    sbtPercentY = (CGFloat)SBTReadDouble(CFSTR("PercentPosY"), 20.0);
 
     // Defaults here must match the "default" values in Root.plist.
     sbtColors1 = @[
@@ -434,14 +427,11 @@ static void SBTUpdateFloatingPercent(void) {
 
     double pct = [UIDevice currentDevice].batteryLevel;
     if (pct < 0.0) pct = 1.0;
-    int precision = MAX(0, MIN(2, sbtPercentPrecision));
-    sbtPercentLabel.text = [NSString stringWithFormat:@"%.*f%%", precision, pct * 100.0];
+    sbtPercentLabel.text = [NSString stringWithFormat:@"%d%%", (int)lround(pct * 100.0)];
     [sbtPercentLabel sizeToFit];
 
     CGRect screen = [UIScreen mainScreen].bounds;
-    CGFloat fx = MAX(0.0, MIN(100.0, sbtPercentX)) / 100.0;
-    CGFloat fy = MAX(0.0, MIN(100.0, sbtPercentY)) / 100.0;
-    CGPoint center = CGPointMake(screen.size.width * fx, screen.size.height * fy);
+    CGPoint center = CGPointMake(sbtPercentX, sbtPercentY);
     CGFloat halfW = sbtPercentLabel.bounds.size.width * 0.5f + 2.0f;
     CGFloat halfH = sbtPercentLabel.bounds.size.height * 0.5f + 2.0f;
     center.x = MAX(halfW, MIN(screen.size.width - halfW, center.x));
