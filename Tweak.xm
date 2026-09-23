@@ -27,6 +27,7 @@ static BOOL sbtFlip = NO;
 static CGFloat sbtAngle = 0.0f;
 static CGFloat sbtPercentX = 82.0f;  // % of screen width
 static CGFloat sbtPercentY = 3.0f;   // % of screen height
+static int sbtPercentPrecision = 0;  // 0 = "25%", 1 = "25.5%", 2 = "25.56%"
 // One entry per SBTState: a UIColor, or NSNull when the hex is empty/invalid
 // (= keep the stock color for that state).
 static NSArray *sbtColors1;
@@ -84,6 +85,11 @@ static void SBTLoadPrefs(void) {
     sbtAngle    = (CGFloat)SBTReadDouble(CFSTR("Angle"), 0.0);
     sbtPercentX = (CGFloat)SBTReadDouble(CFSTR("PercentPosX"), 82.0);
     sbtPercentY = (CGFloat)SBTReadDouble(CFSTR("PercentPosY"), 3.0);
+    {
+        CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("PercentPrecision"), SBT_DOMAIN);
+        id obj = ref ? (__bridge_transfer id)ref : nil;
+        sbtPercentPrecision = [obj respondsToSelector:@selector(intValue)] ? [obj intValue] : 0;
+    }
 
     // Defaults here must match the "default" values in Root.plist.
     sbtColors1 = @[
@@ -375,6 +381,20 @@ static const void *SBTPlugDarkKey = &SBTPlugDarkKey;   // on the plug layer
 static SBTPercentWindow *sbtPercentWindow;
 static UILabel *sbtPercentLabel;
 
+// Finds an active window scene to attach our HUD window to. Without this,
+// a UIWindow that only has .screen set (no .windowScene) never actually
+// renders on this iOS version - which is why the percentage never appeared.
+static UIWindowScene *SBTActiveWindowScene(void) {
+    UIWindowScene *fallback = nil;
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        UIWindowScene *ws = (UIWindowScene *)scene;
+        if (scene.activationState == UISceneActivationStateForegroundActive) return ws;
+        if (!fallback) fallback = ws;
+    }
+    return fallback;
+}
+
 static void SBTEnsurePercentWindow(void) {
     if (sbtPercentWindow) return;
     UIScreen *screen = [UIScreen mainScreen];
@@ -384,6 +404,8 @@ static void SBTEnsurePercentWindow(void) {
     sbtPercentWindow.userInteractionEnabled = NO;
     sbtPercentWindow.backgroundColor = [UIColor clearColor];
     sbtPercentWindow.hidden = YES;
+    UIWindowScene *scene = SBTActiveWindowScene();
+    if (scene) sbtPercentWindow.windowScene = scene;
 
     sbtPercentLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     sbtPercentLabel.font = [UIFont systemFontOfSize:15.0f weight:UIFontWeightSemibold];
@@ -403,10 +425,16 @@ static void SBTUpdateFloatingPercent(void) {
         return;
     }
     SBTEnsurePercentWindow();
+    if (!sbtPercentWindow.windowScene) {
+        UIWindowScene *scene = SBTActiveWindowScene();
+        if (scene) sbtPercentWindow.windowScene = scene;
+        else { sbtPercentWindow.hidden = YES; return; }   // no scene yet, try again next tick
+    }
 
     double pct = [UIDevice currentDevice].batteryLevel;
     if (pct < 0.0) pct = 1.0;
-    sbtPercentLabel.text = [NSString stringWithFormat:@"%d%%", (int)lround(pct * 100.0)];
+    int precision = MAX(0, MIN(2, sbtPercentPrecision));
+    sbtPercentLabel.text = [NSString stringWithFormat:@"%.*f%%", precision, pct * 100.0];
     [sbtPercentLabel sizeToFit];
 
     CGRect screen = [UIScreen mainScreen].bounds;

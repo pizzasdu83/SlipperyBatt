@@ -100,7 +100,7 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSBTDomain];
     NSArray<NSString *> *keys = @[
         @"Enabled", @"Mode3DS", @"GradientEnabled", @"ShowPercentage",
-        @"FlipHorizontal", @"PercentPosX", @"PercentPosY", @"Angle",
+        @"FlipHorizontal", @"PercentPosX", @"PercentPosY", @"PercentPrecision", @"Angle",
         @"NormalColor1", @"NormalColor2",
         @"LowPowerColor1", @"LowPowerColor2",
         @"LowColor1", @"LowColor2",
