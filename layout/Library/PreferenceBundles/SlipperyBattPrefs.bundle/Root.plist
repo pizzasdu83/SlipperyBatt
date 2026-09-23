@@ -348,6 +348,44 @@
 			<key>label</key>
 			<string>☢️ Reset All Settings ☢️</string>
 		</dict>
+		
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>label</key>
+			<string>Source Code</string>
+			<key>icon</key>
+			<string>github.png</string>
+			<key>action</key>
+			<string>openSourceRepository</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>label</key>
+			<string>More</string>
+			<key>icon</key>
+			<string>vibin.png</string>
+			<key>action</key>
+			<string>openButterfly</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>label</key>
+			<string>Address me on discord</string>
+			<key>icon</key>
+			<string>discord.png</string>
+			<key>action</key>
+			<string>openMeInHalf</string>
+		</dict>
 	</array>
 	<key>title</key>
 	<string>Slippery Batt</string>

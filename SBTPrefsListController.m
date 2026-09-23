@@ -52,6 +52,26 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     return _specifiers;
 }
 
+- (void)openSourceRepository {
+    NSURL *url = [NSURL URLWithString:@"https://github.com/pizzasdu83/SlipperyBar"];
+    if (url) [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+    NSIndexPath *selected = self.table.indexPathForSelectedRow;
+    if (selected) [self.table deselectRowAtIndexPath:selected animated:YES];
+}
+
+- (void)openButterfly {
+    NSURL *url = [NSURL URLWithString:@"https://youtu.be/dtCZMge7oHQ"];
+    if (url) [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+    NSIndexPath *selected = self.table.indexPathForSelectedRow;
+    if (selected) [self.table deselectRowAtIndexPath:selected animated:YES];
+}
+
+- (void)openMeInHalf {
+    NSURL *url = [NSURL URLWithString:@"https://discord.gg/e4zY6NrX"];
+    if (url) [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+    NSIndexPath *selected = self.table.indexPathForSelectedRow;
+    if (selected) [self.table deselectRowAtIndexPath:selected animated:YES];
+
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     NSString *key = [specifier propertyForKey:@"key"];
     BOOL isToggle = [key isEqualToString:@"Enabled"] ||
