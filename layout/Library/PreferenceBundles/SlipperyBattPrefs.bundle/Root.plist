@@ -57,51 +57,43 @@
 			<string>Position on Screen</string>
 		</dict>
 		<dict>
-			<key>AllowsContinuousUpdates</key>
-			<true/>
 			<key>PostNotification</key>
 			<string>com.pizzasdu83.slipperybatt/reload</string>
 			<key>cell</key>
-			<string>PSSliderCell</string>
+			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>300.0</real>
+			<string>300</string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
 			<string>pc_posx</string>
 			<key>key</key>
 			<string>PercentPosX</string>
+			<key>keyboard</key>
+			<string>NumberPad</string>
 			<key>label</key>
-			<string>X Position</string>
-			<key>max</key>
-			<real>500.0</real>
-			<key>min</key>
-			<real>0.0</real>
-			<key>showValue</key>
+			<string>X Position (px)</string>
+			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
 		<dict>
-			<key>AllowsContinuousUpdates</key>
-			<true/>
 			<key>PostNotification</key>
 			<string>com.pizzasdu83.slipperybatt/reload</string>
 			<key>cell</key>
-			<string>PSSliderCell</string>
+			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>20.0</real>
+			<string>20</string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
 			<string>pc_posy</string>
 			<key>key</key>
 			<string>PercentPosY</string>
+			<key>keyboard</key>
+			<string>NumberPad</string>
 			<key>label</key>
-			<string>Y Position</string>
-			<key>max</key>
-			<real>1000.0</real>
-			<key>min</key>
-			<real>0.0</real>
-			<key>showValue</key>
+			<string>Y Position (px)</string>
+			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
 		<dict>
@@ -361,4 +353,3 @@
 	<string>Slippery Batt</string>
 </dict>
 </plist>
-
