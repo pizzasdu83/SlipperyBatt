@@ -71,6 +71,7 @@ static BOOL SBTPrefBool(NSString *key, BOOL fallback) {
     if (url) [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
     NSIndexPath *selected = self.table.indexPathForSelectedRow;
     if (selected) [self.table deselectRowAtIndexPath:selected animated:YES];
+}
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     NSString *key = [specifier propertyForKey:@"key"];
