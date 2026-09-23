@@ -105,6 +105,34 @@
 			<true/>
 		</dict>
 		<dict>
+			<key>PostNotification</key>
+			<string>com.pizzasdu83.slipperybatt/reload</string>
+			<key>cell</key>
+			<string>PSSegmentedCell</string>
+			<key>default</key>
+			<integer>0</integer>
+			<key>defaults</key>
+			<string>com.pizzasdu83.slipperybatt</string>
+			<key>id</key>
+			<string>pc_precision</string>
+			<key>key</key>
+			<string>PercentPrecision</string>
+			<key>label</key>
+			<string>Precision</string>
+			<key>titles</key>
+			<array>
+				<string>25%</string>
+				<string>25.5%</string>
+				<string>25.56%</string>
+			</array>
+			<key>values</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+			</array>
+		</dict>
+		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
