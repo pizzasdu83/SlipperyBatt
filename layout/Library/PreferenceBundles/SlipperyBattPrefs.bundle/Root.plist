@@ -7,6 +7,8 @@
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>THIS WON'T WORK IF "Battery percentage" IS ACTIVATED IN THE BATTERY SETTINGS OF THE DEVICE!</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
@@ -21,8 +23,6 @@
 			<string>Enabled</string>
 			<key>label</key>
 			<string>Enabled</string>
-			<key>footerText</key>
-			<string>THIS WON'T WORK IF "Battery percentage" IS ACTIVATED IN THE BATTERY SETTINGS OF THE DEVICE!</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -64,7 +64,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<string>386</string>
+			<string></string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
@@ -84,7 +84,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<string>40</string>
+			<string></string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
@@ -348,43 +348,39 @@
 			<key>label</key>
 			<string>☢️ Reset All Settings ☢️</string>
 		</dict>
-		
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 		</dict>
-
 		<dict>
-			<key>cell</key>
-			<string>PSLinkCell</string>
-			<key>label</key>
-			<string>Source Code</string>
-			<key>icon</key>
-			<string>github.png</string>
 			<key>action</key>
 			<string>openSourceRepository</string>
-		</dict>
-
-		<dict>
 			<key>cell</key>
 			<string>PSLinkCell</string>
-			<key>label</key>
-			<string>More</string>
 			<key>icon</key>
-			<string>vibin.png</string>
+			<string>github.png</string>
+			<key>label</key>
+			<string>Source Code</string>
+		</dict>
+		<dict>
 			<key>action</key>
 			<string>openButterfly</string>
-		</dict>
-
-		<dict>
 			<key>cell</key>
 			<string>PSLinkCell</string>
-			<key>label</key>
-			<string>Address me on discord</string>
 			<key>icon</key>
-			<string>discord.png</string>
+			<string>vibin.png</string>
+			<key>label</key>
+			<string>More</string>
+		</dict>
+		<dict>
 			<key>action</key>
 			<string>openMeInHalf</string>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>icon</key>
+			<string>discord.png</string>
+			<key>label</key>
+			<string>Address me on discord</string>
 		</dict>
 	</array>
 	<key>title</key>
