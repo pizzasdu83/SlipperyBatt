@@ -21,12 +21,14 @@
 			<string>Enabled</string>
 			<key>label</key>
 			<string>Enabled</string>
+			<key>footerText</key>
+			<string>THIS WON'T WORK IF "Battery percentage" IS ACTIVATED IN THE BATTERY SETTINGS OF THE DEVICE!</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Shows the battery percentage. While charging, it moves to a label on the left of the icon.</string>
+			<string>Shows the battery percentage. Change the place of it with boxes below. Might spawn in an invisible place.</string>
 			<key>id</key>
 			<string>en_grouppct</string>
 		</dict>
@@ -50,11 +52,11 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Position in points from the top-left corner. It's clamped to the screen size, so a value larger than the screen just pins it to that edge.</string>
+			<string>Position in pixels. Some phones may exceed the the limit I set.</string>
 			<key>id</key>
 			<string>pc_groupoffset</string>
 			<key>label</key>
-			<string>Position on Screen</string>
+			<string>Battery percentage position</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
@@ -62,7 +64,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<string>300</string>
+			<string>386</string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
@@ -72,7 +74,7 @@
 			<key>keyboard</key>
 			<string>NumberPad</string>
 			<key>label</key>
-			<string>X Position (px)</string>
+			<string>X Position</string>
 			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
@@ -82,7 +84,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<string>20</string>
+			<string>40</string>
 			<key>defaults</key>
 			<string>com.pizzasdu83.slipperybatt</string>
 			<key>id</key>
@@ -92,7 +94,7 @@
 			<key>keyboard</key>
 			<string>NumberPad</string>
 			<key>label</key>
-			<string>Y Position (px)</string>
+			<string>Y Position</string>
 			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
@@ -100,7 +102,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>3DS mode replaces every color with the console's gradients: blue normally, orange while charging or at 20% and below, green in Low Power Mode. A plug icon shows while charging.</string>
+			<string>Did you recognize it? Hint: charge your phone. :)</string>
 			<key>id</key>
 			<string>en_group3ds</string>
 		</dict>
@@ -118,13 +120,13 @@
 			<key>key</key>
 			<string>Mode3DS</string>
 			<key>label</key>
-			<string>3DS Mode</string>
+			<string>Special Mode :)</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Mirrors the battery shape and charge level left-to-right. The 3DS plug icon keeps its normal orientation.</string>
+			<string>Mirrors the battery shape and charge level left-to-right. May help you find what's the special mode. :).</string>
 			<key>id</key>
 			<string>en_groupflip</string>
 		</dict>
@@ -147,8 +149,6 @@
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>When Gradient is off, only Color 1 of each state is used.</string>
 			<key>id</key>
 			<string>cu_groupstyle</string>
 		</dict>
@@ -202,7 +202,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Colors are hex values like #34C759. Leave a field empty to keep the stock color for that state.</string>
+			<string>Colors are hexadecimal.</string>
 			<key>id</key>
 			<string>cu_groupnormal</string>
 			<key>label</key>
@@ -222,7 +222,7 @@
 			<key>key</key>
 			<string>NormalColor1</string>
 			<key>label</key>
-			<string>Color 1</string>
+			<string>Color</string>
 			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
@@ -266,7 +266,7 @@
 			<key>key</key>
 			<string>LowPowerColor1</string>
 			<key>label</key>
-			<string>Color 1</string>
+			<string>Color</string>
 			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
@@ -294,7 +294,7 @@
 			<key>id</key>
 			<string>cu_grouplow</string>
 			<key>label</key>
-			<string>Low Battery (20% or less)</string>
+			<string>Low Battery</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
@@ -310,7 +310,7 @@
 			<key>key</key>
 			<string>LowColor1</string>
 			<key>label</key>
-			<string>Color 1</string>
+			<string>Color</string>
 			<key>noAutoCorrect</key>
 			<true/>
 		</dict>
