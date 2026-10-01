@@ -306,8 +306,15 @@ static const void *SBTHidBoltKey = &SBTHidBoltKey;
 static void SBTSetNativeBoltHidden(UIView *battery, BOOL hide) {
     BOOL wasHidden = [objc_getAssociatedObject(battery, SBTHidBoltKey) boolValue];
     if (!hide && !wasHidden) return;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
     CALayer *bolt = SBTLayerFromObject(SBTValueForKey(battery, @"boltLayer"));
     if (bolt) bolt.hidden = hide;
+    if (hide) {
+        CALayer *fill = SBTFindFillLayer(battery);
+        if (fill) fill.mask = nil;
+    }
+    [CATransaction commit];
     objc_setAssociatedObject(battery, SBTHidBoltKey, @(hide), OBJC_ASSOCIATION_RETAIN);
 }
 
