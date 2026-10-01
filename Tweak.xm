@@ -1,4 +1,3 @@
-// Slippery Batt - recolor the battery icon (solid color, gradient, 3DS mode)
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <CoreFoundation/CoreFoundation.h>
@@ -8,27 +7,24 @@
 #define SBT_NOTIFY "com.pizzasdu83.slipperybatt/reload"
 #define SBT_VIEWDUMP_PATH @"/var/mobile/Documents/SlipperyBatt-viewdump.txt"
 
-// 16x6 black plug glyph (the 3DS charging icon), embedded so no extra file has to be uploaded.
 static NSString *const kSBTPlugBase64 =
     @"iVBORw0KGgoAAAANSUhEUgAAABAAAAAGCAYAAADKfB7nAAAAJklEQVR42mNkwAT/GfADRlwcQhqx6mPEoYBow5gYKAQ08QJJgQgAQFYFB+Ym9QEAAAAASUVORK5CYII=";
 
 typedef NS_ENUM(NSInteger, SBTState) {
     SBTStateNormal = 0,
-    SBTStateLowPower = 1,   // Low Power Mode (green in 3DS mode)
-    SBTStateLow = 2,        // 20% or less (and charging, in 3DS mode) -> orange in 3DS mode
+    SBTStateLowPower = 1,
+    SBTStateLow = 2,
 };
 
-// ---- Preference state (refreshed on darwin notification + 1s poll) ----
 static BOOL sbtEnabled = YES;
 static BOOL sbtMode3DS = NO;
 static BOOL sbtGradient = NO;
 static BOOL sbtShowPercentage = NO;
 static BOOL sbtFlip = NO;
 static CGFloat sbtAngle = 0.0f;
-static CGFloat sbtPercentX = 300.0f; // position in points (top-left origin)
-static CGFloat sbtPercentY = 20.0f;  // position in points
-// One entry per SBTState: a UIColor, or NSNull when the hex is empty/invalid
-// (= keep the stock color for that state).
+static CGFloat sbtPercentX = 300.0f;
+static CGFloat sbtPercentY = 20.0f;
+
 static NSArray *sbtColors1;
 static NSArray *sbtColors2;
 
@@ -53,7 +49,6 @@ static NSString *SBTReadString(CFStringRef key, NSString *fallback) {
     return [obj isKindOfClass:[NSString class]] ? obj : fallback;
 }
 
-// Returns nil if the string isn't a valid 6-digit hex color.
 static UIColor *SBTColorFromHex(NSString *hex) {
     if (!hex) return nil;
     NSString *s = [hex stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -85,7 +80,6 @@ static void SBTLoadPrefs(void) {
     sbtPercentX = (CGFloat)SBTReadDouble(CFSTR("PercentPosX"), 300.0);
     sbtPercentY = (CGFloat)SBTReadDouble(CFSTR("PercentPosY"), 20.0);
 
-    // Defaults here must match the "default" values in Root.plist.
     sbtColors1 = @[
         SBTReadColor(CFSTR("NormalColor1"),   @"#34C759"),
         SBTReadColor(CFSTR("LowPowerColor1"), @"#FFD60A"),
@@ -98,10 +92,6 @@ static void SBTLoadPrefs(void) {
     ];
 }
 
-// ---- Gradient helpers ----
-
-// Converts an angle in degrees to CAGradientLayer start/end points (unit square).
-// 0 = left to right, 90 = top to bottom.
 static void SBTGradientPointsForAngle(CGFloat degrees, CGPoint *start, CGPoint *end) {
     CGFloat radians = degrees * (CGFloat)M_PI / 180.0f;
     CGFloat dx = cosf(radians), dy = sinf(radians);
@@ -113,28 +103,25 @@ static id SBTRGB(int r, int g, int b) {
     return (id)[UIColor colorWithRed:r / 255.0f green:g / 255.0f blue:b / 255.0f alpha:1.0f].CGColor;
 }
 
-// The 3DS palettes. Stops are listed bottom -> top, like the CSS "0deg" gradients.
 static NSArray *SBT3DSColors(SBTState state) {
     switch (state) {
-        case SBTStateLowPower:  // Low Power Mode: green
+        case SBTStateLowPower:
             return @[SBTRGB(0, 230, 0), SBTRGB(0, 198, 0), SBTRGB(116, 253, 116), SBTRGB(0, 230, 0)];
-        case SBTStateLow:       // charging / almost empty: orange
+        case SBTStateLow:
             return @[SBTRGB(255, 148, 76), SBTRGB(212, 108, 56), SBTRGB(255, 222, 116), SBTRGB(255, 148, 76)];
-        case SBTStateNormal:    // normal: blue
+        case SBTStateNormal:
         default:
             return @[SBTRGB(40, 190, 255), SBTRGB(30, 146, 198), SBTRGB(62, 255, 255), SBTRGB(40, 190, 255)];
     }
 }
 
-// Fills in the gradient for a state. Returns NO when this state should keep
-// the stock look (empty/invalid hex).
 static BOOL SBTBuildGradient(SBTState state, NSArray **colors, NSArray **locations,
                              CGPoint *start, CGPoint *end) {
     if (sbtMode3DS) {
         *colors = SBT3DSColors(state);
         *locations = @[@0.0, @0.5, @0.75, @1.0];
-        *start = CGPointMake(0.5f, 1.0f);   // bottom
-        *end   = CGPointMake(0.5f, 0.0f);   // top
+        *start = CGPointMake(0.5f, 1.0f);
+        *end   = CGPointMake(0.5f, 0.0f);
         return YES;
     }
 
@@ -158,8 +145,6 @@ static BOOL SBTBuildGradient(SBTState state, NSArray **colors, NSArray **locatio
     return YES;
 }
 
-// ---- Private UIKit access helpers ----
-
 static id SBTValueForKey(id obj, NSString *key) {
     @try { return [obj valueForKey:key]; } @catch (NSException *e) { return nil; }
 }
@@ -171,16 +156,13 @@ static CALayer *SBTLayerFromObject(id o) {
 }
 
 static id SBTIvarObject(id obj, const char *name) {
-    Ivar iv = class_getInstanceVariable(object_getClass(obj), name);   // searches superclasses too
+    Ivar iv = class_getInstanceVariable(object_getClass(obj), name);
     if (!iv) return nil;
     const char *type = ivar_getTypeEncoding(iv);
     if (!type || type[0] != '@') return nil;
     return object_getIvar(obj, iv);
 }
 
-// _UIBatteryView exposes its layers through public-looking accessors
-// (fillLayer, bodyLayer, boltLayer...). The on-screen class is actually the
-// subclass STUIStatusBarBatteryView, which is why the ivars aren't listed on it.
 static CALayer *SBTFindFillLayer(UIView *battery) {
     CALayer *l = SBTLayerFromObject(SBTValueForKey(battery, @"fillLayer"));
     if (l) return l;
@@ -192,8 +174,6 @@ static CALayer *SBTFindFillLayer(UIView *battery) {
     return nil;
 }
 
-// Reads what THIS battery view is displaying (so e.g. a Bluetooth device battery
-// uses its own level). Falls back to the device's own state if a key is missing.
 static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL *saver) {
     UIDevice *device = [UIDevice currentDevice];
     double p = device.batteryLevel;
@@ -202,7 +182,7 @@ static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL 
               device.batteryState == UIDeviceBatteryStateFull);
     BOOL s = [NSProcessInfo processInfo].lowPowerModeEnabled;
 
-    id v = SBTValueForKey(view, @"chargePercent");        // 0.0 - 1.0 (confirmed by the dump)
+    id v = SBTValueForKey(view, @"chargePercent");
     if ([v isKindOfClass:[NSNumber class]]) {
         p = [v doubleValue];
         if (p > 1.0) p /= 100.0;
@@ -219,14 +199,12 @@ static void SBTReadBatteryState(UIView *view, double *pct, BOOL *charging, BOOL 
 
 static SBTState SBTResolveState(double pct, BOOL charging, BOOL saver) {
     if (saver) return SBTStateLowPower;
-    if (sbtMode3DS && charging && pct > 0.90) return SBTStateLowPower;  // 3DS: green above 90% while charging
-    if (pct <= 0.205) return SBTStateLow;                 // 20% or less
-    if (sbtMode3DS && charging) return SBTStateLow;       // 3DS: orange while charging
+    if (sbtMode3DS && charging && pct > 0.90) return SBTStateLowPower;
+    if (pct <= 0.205) return SBTStateLow;
+    if (sbtMode3DS && charging) return SBTStateLow;
     return SBTStateNormal;
 }
 
-// Black plug glyph, plus a baked white copy for dark mode (tinting a UIImage
-// doesn't change its CGImage, so the white one is drawn once with source-in).
 static UIImage *SBTPlugImage(BOOL white) {
     static UIImage *blackImage, *whiteImage;
     static dispatch_once_t once;
@@ -248,8 +226,6 @@ static UIImage *SBTPlugImage(BOOL white) {
     });
     return white ? whiteImage : blackImage;
 }
-
-// ---- Diagnostics: written once per battery view class, once it has a real size ----
 
 static void SBTDumpLayerTree(CALayer *l, int depth, NSMutableString *out) {
     BOOL isShape = [l isKindOfClass:[CAShapeLayer class]];
@@ -277,7 +253,7 @@ static void SBTDumpAccessor(UIView *battery, NSString *key, NSMutableString *out
 static void SBTDumpBatteryView(UIView *battery) {
     static NSMutableSet *dumpedClasses;
     static NSMutableString *allDumps;
-    if (battery.bounds.size.width < 5.0f || battery.bounds.size.height < 5.0f) return;   // wait for a real size
+    if (battery.bounds.size.width < 5.0f || battery.bounds.size.height < 5.0f) return;
 
     NSString *cname = NSStringFromClass([battery class]);
     if (!dumpedClasses) { dumpedClasses = [NSMutableSet set]; allDumps = [NSMutableString string]; }
@@ -322,15 +298,10 @@ static void SBTDumpBatteryView(UIView *battery) {
     [allDumps writeToFile:SBT_VIEWDUMP_PATH atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
-// ---- Painting ----
-// The gradient is a sublayer INSIDE the native fill layer. That way the native
-// code keeps owning the geometry (width = charge level, rounded corners, text
-// cutout mask...) and we only paint on top of its background color.
-
-static const void *SBTGradientKey = &SBTGradientKey;      // on the fill layer
-static const void *SBTOrigMasksKey = &SBTOrigMasksKey;    // on the fill layer
-static const void *SBTPlugKey = &SBTPlugKey;              // on the battery view
-static const void *SBTHidBoltKey = &SBTHidBoltKey;        // on the battery view
+static const void *SBTGradientKey = &SBTGradientKey;
+static const void *SBTOrigMasksKey = &SBTOrigMasksKey;
+static const void *SBTPlugKey = &SBTPlugKey;
+static const void *SBTHidBoltKey = &SBTHidBoltKey;
 
 static void SBTSetNativeBoltHidden(UIView *battery, BOOL hide) {
     BOOL wasHidden = [objc_getAssociatedObject(battery, SBTHidBoltKey) boolValue];
@@ -357,27 +328,18 @@ static void SBTRestoreNative(UIView *battery, CALayer *fill) {
     SBTSetNativeBoltHidden(battery, NO);
 }
 
-// ---- Battery percentage: floating, freely-positioned label ----
-// A standalone HUD window, independent of any _UIBatteryView. Forcing the
-// native "showsPercentage" property was tried first, but on this iOS version
-// it swaps the whole icon for Apple's own colored percentage pill instead of
-// adding a side label, which duplicated/clashed with our own colored fill.
-// A separate always-on-top label sidesteps that entirely.
-static const void *SBTPlugDarkKey = &SBTPlugDarkKey;   // on the plug layer
+static const void *SBTPlugDarkKey = &SBTPlugDarkKey;
 
 @interface SBTPercentWindow : UIWindow
 @end
 @implementation SBTPercentWindow
-// Never intercept touches; this is a purely visual HUD.
+
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event { return nil; }
 @end
 
 static SBTPercentWindow *sbtPercentWindow;
 static UILabel *sbtPercentLabel;
 
-// Finds an active window scene to attach our HUD window to. Without this,
-// a UIWindow that only has .screen set (no .windowScene) never actually
-// renders on this iOS version - which is why the percentage never appeared.
 static UIWindowScene *SBTActiveWindowScene(void) {
     UIWindowScene *fallback = nil;
     for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -394,7 +356,7 @@ static void SBTEnsurePercentWindow(void) {
     UIScreen *screen = [UIScreen mainScreen];
     sbtPercentWindow = [[SBTPercentWindow alloc] initWithFrame:screen.bounds];
     sbtPercentWindow.screen = screen;
-    sbtPercentWindow.windowLevel = 2147483000.0;   // above everything else, including alerts
+    sbtPercentWindow.windowLevel = 2147483000.0;
     sbtPercentWindow.userInteractionEnabled = NO;
     sbtPercentWindow.backgroundColor = [UIColor clearColor];
     sbtPercentWindow.hidden = YES;
@@ -411,7 +373,6 @@ static void SBTEnsurePercentWindow(void) {
     [sbtPercentWindow addSubview:sbtPercentLabel];
 }
 
-// Reads the device's own battery state (not any one specific icon's).
 static void SBTUpdateFloatingPercent(void) {
     BOOL want = sbtEnabled && sbtShowPercentage;
     if (!want) {
@@ -422,7 +383,7 @@ static void SBTUpdateFloatingPercent(void) {
     if (!sbtPercentWindow.windowScene) {
         UIWindowScene *scene = SBTActiveWindowScene();
         if (scene) sbtPercentWindow.windowScene = scene;
-        else { sbtPercentWindow.hidden = YES; return; }   // no scene yet, try again next tick
+        else { sbtPercentWindow.hidden = YES; return; }
     }
 
     double pct = [UIDevice currentDevice].batteryLevel;
@@ -440,12 +401,6 @@ static void SBTUpdateFloatingPercent(void) {
     sbtPercentWindow.hidden = NO;
 }
 
-// ---- Horizontal flip ----
-// Mirrors the whole native battery layer (body, fill, pin, bolt): the shape
-// flips and the charge level visually grows from the opposite side, since a
-// transform doesn't change the underlying frames iOS lays out with. The 3DS
-// plug icon is a sibling layer, so it inherits this transform too - it gets
-// a second, opposite transform below to cancel that out and stay upright.
 static CATransform3D SBTFlipTransform(void) {
     return (sbtEnabled && sbtFlip) ? CATransform3DMakeScale(-1.0, 1.0, 1.0) : CATransform3DIdentity;
 }
@@ -500,7 +455,7 @@ static void SBTApplyOverlay(UIView *battery) {
         [grad removeFromSuperlayer];
         [fill addSublayer:grad];
     }
-    fill.masksToBounds = YES;      // clip the gradient to the native rounded shape
+    fill.masksToBounds = YES;
     grad.hidden = NO;
     grad.opacity = 1.0f;
     grad.frame = fill.bounds;
@@ -509,7 +464,6 @@ static void SBTApplyOverlay(UIView *battery) {
     grad.startPoint = start;
     grad.endPoint = end;
 
-    // 3DS charging plug icon, centered on the battery body.
     BOOL showPlug = sbtMode3DS && charging;
     CALayer *plug = objc_getAssociatedObject(battery, SBTPlugKey);
     if (showPlug) {
@@ -531,7 +485,7 @@ static void SBTApplyOverlay(UIView *battery) {
             center = [battery.layer convertPoint:CGPointMake(CGRectGetMidX(body.bounds), CGRectGetMidY(body.bounds))
                                        fromLayer:body];
         }
-        // Black plug in light mode, white plug in dark mode (system appearance).
+
         BOOL dark = ([UIScreen mainScreen].traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
         NSNumber *lastDark = objc_getAssociatedObject(plug, SBTPlugDarkKey);
         if (!lastDark || lastDark.boolValue != dark) {
@@ -540,16 +494,27 @@ static void SBTApplyOverlay(UIView *battery) {
         }
         plug.bounds = CGRectMake(0, 0, w, h);
         plug.position = center;
-        plug.transform = SBTFlipTransform();   // cancels the parent's flip so the plug stays upright
+        plug.transform = SBTFlipTransform();
         plug.hidden = NO;
+        if (![plug animationForKey:@"sbtBlink"]) {
+            CAKeyframeAnimation *blink = [CAKeyframeAnimation animationWithKeyPath:@"opacity"];
+            blink.values = @[@1.0, @1.0, @0.0, @0.0];
+            blink.keyTimes = @[@0.0, @0.5, @0.5, @1.0];
+            blink.calculationMode = kCAAnimationDiscrete;
+            blink.duration = 2.0;
+            blink.repeatCount = HUGE_VALF;
+            blink.removedOnCompletion = NO;
+            [plug addAnimation:blink forKey:@"sbtBlink"];
+        }
     } else if (plug) {
+        [plug removeAnimationForKey:@"sbtBlink"];
+        plug.opacity = 1.0f;
         plug.hidden = YES;
     }
     [CATransaction commit];
     SBTSetNativeBoltHidden(battery, showPlug);
 }
 
-// ---- Track every live battery view so the poll can re-apply on state changes ----
 static NSHashTable<UIView *> *sbtTrackedViews;
 
 static void SBTTrackView(UIView *view) {
@@ -557,7 +522,6 @@ static void SBTTrackView(UIView *view) {
     [sbtTrackedViews addObject:view];
 }
 
-// ---- Hook target (private UIKit class; the status bar uses its subclass STUIStatusBarBatteryView) ----
 @interface _UIBatteryView : UIView
 @end
 
@@ -599,8 +563,6 @@ static void SBTPollTick(CFRunLoopTimerRef timer, void *info) {
         NULL, SBTReloadCallback, CFSTR(SBT_NOTIFY), NULL,
         CFNotificationSuspensionBehaviorDeliverImmediately);
 
-    // Fallback path: re-check preferences and the battery state once a second,
-    // in case the darwin notification never reaches SpringBoard.
     CFRunLoopTimerRef pollTimer = CFRunLoopTimerCreate(
         kCFAllocatorDefault, CFAbsoluteTimeGetCurrent(), 1.0, 0, 0,
         SBTPollTick, NULL);
