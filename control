@@ -6,4 +6,4 @@ Description: Recolor the battery icon (solid color, gradient, Low Power Mode, lo
 Maintainer: SaaS
 Author: SaaS
 Section: Tweaks
-Depends: mobilesubstrate (>= 0.9.5000), firmware (>= 15.0), preferenceloader
+Depends: mobilesubstrate (>= 0.9.5000), firmware (>= 15.0), preferenceloader, com.pizzasdu83.slipperyassets
